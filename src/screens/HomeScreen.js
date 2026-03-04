@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, RefreshControl, Alert
+  StyleSheet, RefreshControl, Alert, Platform
 } from "react-native";
-import { getPDFs, deletePDF, getSharedWithMe } from "../api";
+import { getPDFs, deletePDF, getSharedWithMe, removeSharedPDF } from "../api";
 import { useAuth } from "../context/AuthContext";
 
 export default function HomeScreen({ navigation }) {
@@ -38,11 +38,45 @@ export default function HomeScreen({ navigation }) {
   }, [load, navigation]);
 
   const handleDelete = (id) => {
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this PDF?")) {
+        deletePDF(id).then(() => load()).catch(() => Alert.alert("Error", "Could not delete PDF"));
+      }
+      return;
+    }
     Alert.alert("Delete PDF", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete", style: "destructive",
         onPress: async () => { await deletePDF(id); load(); }
+      },
+    ]);
+  };
+
+  const handleRemoveShared = (id) => {
+    if (Platform.OS === "web") {
+      if (window.confirm("Remove this PDF from your shared list?")) {
+        removeSharedPDF(id)
+          .then(() => getSharedWithMe())
+          .then((res) => setSharedPdfs(res.data))
+          .catch(() => Alert.alert("Error", "Could not remove PDF"));
+      }
+      return;
+    }
+    Alert.alert("Remove PDF", "Remove this PDF from your shared list?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove", style: "destructive",
+        onPress: async () => {
+          try {
+            await removeSharedPDF(id);
+            const sharedRes = await getSharedWithMe();
+            setSharedPdfs(sharedRes.data);
+          } catch (e) {
+            console.log("Remove error:", e?.response?.status, e?.message);
+            Alert.alert("Error", e?.response?.data?.error || e?.message || "Could not remove PDF");
+          }
+        }
       },
     ]);
   };
@@ -62,11 +96,16 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       )}
       {tab === "shared" && (
-        <Text style={s.sharedBadge}>
-          {item.expiresAt
-            ? `⏱ Expires: ${new Date(item.expiresAt).toLocaleString()}`
-            : "♾ No expiry"}
-        </Text>
+        <View style={s.sharedFooter}>
+          <Text style={s.sharedBadge}>
+            {item.expiresAt
+              ? `⏱ Expires: ${new Date(item.expiresAt).toLocaleString()}`
+              : "♾ No expiry"}
+          </Text>
+          <TouchableOpacity style={s.removeBtn} onPress={() => handleRemoveShared(item._id)}>
+            <Text style={s.removeBtnTxt}>🗑 Remove</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -140,6 +179,9 @@ const s = StyleSheet.create({
   meta: { fontSize: 13, color: "#64748b" },
   date: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
   del: { color: "#ef4444", marginTop: 8, fontSize: 13 },
-  sharedBadge: { color: "#6366f1", marginTop: 8, fontSize: 13, fontWeight: "600" },
+  sharedFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  sharedBadge: { color: "#6366f1", fontSize: 12, fontWeight: "600", flex: 1, flexWrap: "wrap" },
+  removeBtn: { backgroundColor: "#ef4444", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, marginLeft: 8 },
+  removeBtnTxt: { color: "#fff", fontWeight: "bold", fontSize: 12 },
   empty: { textAlign: "center", marginTop: 60, color: "#94a3b8", fontSize: 16 },
 });

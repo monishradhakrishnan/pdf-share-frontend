@@ -62,6 +62,11 @@ export default function PDFDetailScreen({ route }) {
 
   // ── Share file via device share sheet ───────────────────────
   const handleShare = async () => {
+    if (Platform.OS === "web") {
+      // On web, open PDF in new tab
+      window.open(`${BASE_URL}/pdfs/${pdf._id}/download`, "_blank");
+      return;
+    }
     const uri = await downloadToLocal();
     if (!uri) return;
     const canShare = await Sharing.isAvailableAsync();

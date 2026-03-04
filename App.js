@@ -2,12 +2,17 @@ import { AppRegistry } from "react-native";
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { enableScreens } from "react-native-screens";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+import WebLayout from "./src/components/WebLayout";
 import LoginScreen from "./src/screens/Loginscreen";
 import SignupScreen from "./src/screens/SignupScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import UploadScreen from "./src/screens/UploadScreen";
 import PDFDetailScreen from "./src/screens/PDFDetailScreen";
+
+enableScreens();
+console.log("App.js loaded ✅");
 
 const Stack = createNativeStackNavigator();
 
@@ -39,9 +44,11 @@ function AppNavigator() {
 function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
+      <WebLayout>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </WebLayout>
     </AuthProvider>
   );
 }
