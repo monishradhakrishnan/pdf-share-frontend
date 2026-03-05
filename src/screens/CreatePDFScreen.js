@@ -9,6 +9,7 @@ import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { BASE_URL } from "../api";
+import api from "../api";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
@@ -17,12 +18,13 @@ export default function CreatePDFScreen({ navigation }) {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [webPdfBlob, setWebPdfBlob] = useState(null);
+  const [webPdfReady, setWebPdfReady] = useState(false);
   const { token } = useAuth();
 
-  // ── Convert image uri to base64 ──────────────────────────────
+  // ── Convert image to base64 ──────────────────────────────────
   const toBase64 = async (img) => {
     if (Platform.OS === "web") {
-      // On web, img.webFile is a native File object
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
@@ -108,7 +110,6 @@ export default function CreatePDFScreen({ navigation }) {
             @page { margin: 0; size: auto; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
             html, body { background: #fff; -webkit-print-color-adjust: exact; }
-            h1 { color: #6366f1; font-size: 24px; text-align: center; padding: 20px; border-bottom: 2px solid #6366f1; margin-bottom: 20px; }
             .page {
               display: flex;
               justify-content: center;
@@ -117,22 +118,17 @@ export default function CreatePDFScreen({ navigation }) {
               page-break-after: always;
               width: 100%;
             }
-            .page img {
-              display: block;
-              max-width: 100%;
-              height: auto;
-            }
+            .page img { display: block; max-width: 100%; height: auto; }
           </style>
         </head>
         <body>
-          ${title ? `<h1>${title}</h1>` : ""}
           ${imgTags.join("")}
         </body>
       </html>
     `;
   };
 
-  // ── Upload to backend (native only) ─────────────────────────
+  // ── Upload to backend (native) ───────────────────────────────
   const uploadToBackend = async (fileUri, filename) => {
     const form = new FormData();
     form.append("file", { uri: fileUri, name: filename, type: "application/pdf" });
@@ -142,27 +138,20 @@ export default function CreatePDFScreen({ navigation }) {
     return res.data;
   };
 
-  // ── Create PDF — unified handler for both platforms ──────────
+  // ── Create PDF ───────────────────────────────────────────────
   const handleCreatePDF = async () => {
     if (images.length === 0) return Alert.alert("No images", "Please add at least one image");
     setLoading(true);
     setError("");
     try {
       const html = await generateHTML();
-
       if (Platform.OS === "web") {
-        // On web: open print dialog (user can Save as PDF from there)
-        const printWindow = window.open("", "_blank");
-        printWindow.document.write(html);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => printWindow.print(), 500);
+        setWebPdfBlob(html);
+        setWebPdfReady(true);
       } else {
-        // On native: generate PDF file then offer Upload / Share
         const { uri } = await Print.printToFileAsync({ html, base64: false });
         const filename = `${title || "images"}.pdf`;
         const dest = FileSystem.documentDirectory + filename;
-        // Delete existing file at dest if it exists, to avoid rename conflicts
         const existing = await FileSystem.getInfoAsync(dest);
         if (existing.exists) await FileSystem.deleteAsync(dest, { idempotent: true });
         await FileSystem.moveAsync({ from: uri, to: dest });
@@ -197,6 +186,50 @@ export default function CreatePDFScreen({ navigation }) {
     }
   };
 
+  // ── Web: Upload to App ───────────────────────────────────────
+  const handleWebUpload = async () => {
+    if (!webPdfBlob) return;
+    setLoading(true);
+    try {
+      const filename = `${title || "images"}.pdf`;
+      const htmlBlob = new Blob([webPdfBlob], { type: "application/pdf" });
+      const form = new FormData();
+      form.append("file", htmlBlob, filename);
+      const res = await api.post("/pdfs/upload", form);
+      console.log("Upload success:", res.data);
+      Alert.alert("Success 🎉", "PDF uploaded to app!");
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert("Error", e?.response?.data?.error || "Could not upload PDF");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Web: Print ───────────────────────────────────────────────
+  const handleWebPrint = () => {
+    if (!webPdfBlob) return;
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(webPdfBlob);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
+  };
+
+  // ── Web: Download ────────────────────────────────────────────
+  const handleWebDownload = () => {
+    if (!webPdfBlob) return;
+    const blob = new Blob([webPdfBlob], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title || "images"}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <ScrollView style={s.container} keyboardShouldPersistTaps="handled">
       <Text style={s.heading}>🖼 Images to PDF</Text>
@@ -209,7 +242,7 @@ export default function CreatePDFScreen({ navigation }) {
         style={s.titleInput}
         placeholder="e.g. My Photo Album"
         value={title}
-        onChangeText={setTitle}
+        onChangeText={(t) => { setTitle(t); setWebPdfReady(false); setWebPdfBlob(null); }}
       />
 
       <TouchableOpacity style={s.addBtn} onPress={pickImages}>
@@ -253,21 +286,54 @@ export default function CreatePDFScreen({ navigation }) {
         </View>
       )}
 
-      {/* Single Create PDF button for all platforms */}
-      <TouchableOpacity
-        style={[s.createBtn, (loading || images.length === 0) && s.btnDisabled]}
-        onPress={handleCreatePDF}
-        disabled={loading || images.length === 0}
-      >
-        {loading
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={s.createBtnTxt}>📄 Create PDF</Text>
-        }
-      </TouchableOpacity>
+      {/* Create PDF button — shown when PDF not yet ready */}
+      {!webPdfReady && (
+        <TouchableOpacity
+          style={[s.createBtn, (loading || images.length === 0) && s.btnDisabled]}
+          onPress={handleCreatePDF}
+          disabled={loading || images.length === 0}
+        >
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.createBtnTxt}>📄 Create PDF</Text>
+          }
+        </TouchableOpacity>
+      )}
 
-      <TouchableOpacity style={s.cancelBtn} onPress={() => navigation.goBack()}>
-        <Text style={s.cancelTxt}>Cancel</Text>
-      </TouchableOpacity>
+      {/* Web action buttons — shown after PDF is ready */}
+      {Platform.OS === "web" && webPdfReady && (
+        <View style={s.webActions}>
+          <Text style={s.webReadyTxt}>✅ PDF Ready! Choose an action:</Text>
+          <TouchableOpacity
+            style={[s.createBtn, loading && s.btnDisabled]}
+            onPress={handleWebUpload}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={s.createBtnTxt}>⬆ Upload to App</Text>
+            }
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.createBtn, s.printBtn]} onPress={handleWebPrint}>
+            <Text style={s.createBtnTxt}>🖨 Print PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.createBtn, s.downloadBtn]} onPress={handleWebDownload}>
+            <Text style={s.createBtnTxt}>⬇ Download PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.backBtn}
+            onPress={() => { setWebPdfReady(false); setWebPdfBlob(null); }}
+          >
+            <Text style={s.cancelTxt}>← Back to Edit</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {!webPdfReady && (
+        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={s.cancelTxt}>Cancel</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -296,8 +362,12 @@ const s = StyleSheet.create({
   infoBox: { backgroundColor: "#f0f9ff", borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: "#bae6fd" },
   infoTxt: { fontSize: 13, color: "#0369a1", textAlign: "center" },
   createBtn: { backgroundColor: "#6366f1", padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
+  printBtn: { backgroundColor: "#f59e0b" },
+  downloadBtn: { backgroundColor: "#10b981" },
   btnDisabled: { opacity: 0.5 },
   createBtnTxt: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  cancelBtn: { alignItems: "center", padding: 12, marginBottom: 32 },
+  webActions: { marginBottom: 12 },
+  webReadyTxt: { fontSize: 15, fontWeight: "600", color: "#16a34a", textAlign: "center", marginBottom: 16 },
+  backBtn: { alignItems: "center", padding: 12, marginBottom: 32 },
   cancelTxt: { color: "#94a3b8", fontSize: 15 },
 });
