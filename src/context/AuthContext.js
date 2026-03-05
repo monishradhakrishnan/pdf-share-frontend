@@ -25,11 +25,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
   };
-  useEffect(() => {
-  AsyncStorage.getAllKeys().then(keys => console.log("AsyncStorage keys:", keys));
-  AsyncStorage.getItem("token").then(t => console.log("AsyncStorage token:", t));
-}, []);
-
+ 
   return (
     <AuthContext.Provider value={{ token, user, signIn, signOut }}>
       {children}
