@@ -1,66 +1,89 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator
+  Alert, ActivityIndicator, Platform
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useAuth } from "../context/AuthContext";
+import api from "../api"; // ← same axios instance used everywhere else
 import axios from "axios";
 import { BASE_URL } from "../api";
 
-export default function UploadScreen({ navigation, route }) {
+export default function UploadScreen({ navigation }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { token } = useAuth();
+  const webInputRef = useRef(null);
 
+  // ── Pick file ────────────────────────────────────────────────
   const pickFile = async () => {
+    if (Platform.OS === "web") {
+      webInputRef.current?.click();
+      return;
+    }
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
         copyToCacheDirectory: true,
       });
-      console.log("Picked file:", JSON.stringify(res));
       if (!res.canceled && res.assets?.length > 0) {
         setFile(res.assets[0]);
         setError("");
       }
     } catch (e) {
-      console.log("Pick error:", e);
       Alert.alert("Error", "Could not pick file");
     }
   };
 
+  // ── Web file input handler ───────────────────────────────────
+  const onWebFileChange = (e) => {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    if (picked.type !== "application/pdf") {
+      setError("Please select a PDF file");
+      return;
+    }
+    setFile(picked);
+    setError("");
+  };
+
+  // ── Upload ───────────────────────────────────────────────────
   const handleUpload = async () => {
     if (!file) return Alert.alert("No file", "Please select a PDF first");
     setLoading(true);
     setError("");
     try {
-      console.log("Uploading file:", file.name, file.uri);
       const form = new FormData();
-      form.append("file", {
-        uri: file.uri,
-        name: file.name,
-        type: "application/pdf",
-      });
 
-      const res = await axios.post(`${BASE_URL}/pdfs/upload`, form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-          Accept: "application/json",
-        },
-      });
+      if (Platform.OS === "web") {
+        // Append native File object directly
+        form.append("file", file, file.name);
+        // Use the same api axios instance (has token interceptor)
+        // Don't set Content-Type — let axios+browser set it with boundary
+        const res = await api.post("/pdfs/upload", form);
+        console.log("Upload success:", res.data);
+      } else {
+        form.append("file", {
+          uri: file.uri,
+          name: file.name,
+          type: "application/pdf",
+        });
+        const res = await axios.post(`${BASE_URL}/pdfs/upload`, form, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+            Accept: "application/json",
+          },
+        });
+        console.log("Upload success:", res.data);
+      }
 
-      console.log("Upload success:", res.data);
       Alert.alert("Success", "PDF uploaded successfully!");
       navigation.goBack();
     } catch (e) {
-      console.log("Upload error:", JSON.stringify(e?.response?.data || e?.message));
-      const msg =
-        e?.response?.data?.error ||
-        e?.message ||
-        "Upload failed. Check connection.";
+      console.log("Upload error:", e?.response?.data || e?.message);
+      const msg = e?.response?.data?.error || e?.message || "Upload failed";
       setError(msg);
       Alert.alert("Upload Failed", msg);
     } finally {
@@ -68,20 +91,31 @@ export default function UploadScreen({ navigation, route }) {
     }
   };
 
+  const fileName = file?.name;
+  const fileSize = file ? (file.size / 1024 / 1024).toFixed(2) + " MB" : null;
+
   return (
     <View style={s.container}>
       <Text style={s.heading}>Select a PDF to Upload</Text>
 
       {error ? <Text style={s.error}>⚠ {error}</Text> : null}
 
+      {Platform.OS === "web" && (
+        <input
+          ref={webInputRef}
+          type="file"
+          accept="application/pdf"
+          style={{ display: "none" }}
+          onChange={onWebFileChange}
+        />
+      )}
+
       <TouchableOpacity style={s.picker} onPress={pickFile}>
         <Text style={s.pickerIcon}>📂</Text>
         <Text style={s.pickerTxt}>
-          {file ? file.name : "Tap to browse files"}
+          {fileName ? fileName : "Tap to browse files"}
         </Text>
-        {file && (
-          <Text style={s.size}>{(file.size / 1024 / 1024).toFixed(2)} MB</Text>
-        )}
+        {fileSize && <Text style={s.size}>{fileSize}</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity
