@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, RefreshControl, Alert, Platform
+  StyleSheet, RefreshControl, Alert, Platform, ScrollView
 } from "react-native";
 import { getPDFs, deletePDF, getSharedWithMe, removeSharedPDF } from "../api";
 import { useAuth } from "../context/AuthContext";
 
 export default function HomeScreen({ navigation }) {
-  const [tab, setTab] = useState("all"); // "all" | "shared"
+  const [tab, setTab] = useState("all");
   const [pdfs, setPdfs] = useState([]);
   const [sharedPdfs, setSharedPdfs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +73,6 @@ export default function HomeScreen({ navigation }) {
             const sharedRes = await getSharedWithMe();
             setSharedPdfs(sharedRes.data);
           } catch (e) {
-            console.log("Remove error:", e?.response?.status, e?.message);
             Alert.alert("Error", e?.response?.data?.error || e?.message || "Could not remove PDF");
           }
         }
@@ -86,7 +85,10 @@ export default function HomeScreen({ navigation }) {
   const data = tab === "all" ? pdfs : sharedPdfs;
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity style={s.card} onPress={() => navigation.navigate("PDFDetail", { pdf: item })}>
+    <TouchableOpacity
+      style={s.card}
+      onPress={() => navigation.navigate("PDFDetail", { pdf: item })}
+    >
       <Text style={s.name} numberOfLines={1}>📄 {item.originalName}</Text>
       <Text style={s.meta}>{item.uploaderName} · {formatSize(item.size)}</Text>
       <Text style={s.date}>{new Date(item.createdAt).toLocaleDateString()}</Text>
@@ -110,6 +112,73 @@ export default function HomeScreen({ navigation }) {
     </TouchableOpacity>
   );
 
+  // ── Web layout: use ScrollView to avoid hidden content ──────
+  if (Platform.OS === "web") {
+    return (
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={s.webContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.hello}>Hello, {user?.name} 👋</Text>
+          <TouchableOpacity onPress={signOut}>
+            <Text style={s.logout}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={s.actionRow}>
+          <TouchableOpacity
+            style={s.uploadBtn}
+            onPress={() => navigation.navigate("Upload")}
+          >
+            <Text style={s.uploadTxt}>⬆ Upload PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.createBtn}
+            onPress={() => navigation.navigate("CreatePDF")}
+          >
+            <Text style={s.uploadTxt}>📝 Create PDF</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Tabs */}
+        <View style={s.tabs}>
+          <TouchableOpacity
+            style={[s.tab, tab === "all" && s.activeTab]}
+            onPress={() => setTab("all")}
+          >
+            <Text style={[s.tabTxt, tab === "all" && s.activeTabTxt]}>
+              All PDFs {pdfs.length > 0 ? `(${pdfs.length})` : ""}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.tab, tab === "shared" && s.activeTab]}
+            onPress={() => setTab("shared")}
+          >
+            <Text style={[s.tabTxt, tab === "shared" && s.activeTabTxt]}>
+              Shared with Me {sharedPdfs.length > 0 ? `(${sharedPdfs.length})` : ""}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* PDF List — rendered as plain mapped views on web */}
+        {data.length === 0 ? (
+          <Text style={s.empty}>
+            {tab === "all" ? "No PDFs yet. Upload one!" : "No PDFs shared with you yet."}
+          </Text>
+        ) : (
+          data.map((item) => (
+            <View key={item._id}>{renderItem({ item })}</View>
+          ))
+        )}
+      </ScrollView>
+    );
+  }
+
+  // ── Native layout ────────────────────────────────────────────
   return (
     <View style={s.container}>
       {/* Header */}
@@ -120,10 +189,15 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Upload Button */}
-      <TouchableOpacity style={s.uploadBtn} onPress={() => navigation.navigate("Upload")}>
-        <Text style={s.uploadTxt}>＋ Upload PDF</Text>
-      </TouchableOpacity>
+      {/* Action Buttons */}
+      <View style={s.actionRow}>
+        <TouchableOpacity style={s.uploadBtn} onPress={() => navigation.navigate("Upload")}>
+          <Text style={s.uploadTxt}>⬆ Upload PDF</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.createBtn} onPress={() => navigation.navigate("CreatePDF")}>
+          <Text style={s.uploadTxt}>📝 Create PDF</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Tabs */}
       <View style={s.tabs}>
@@ -164,24 +238,57 @@ export default function HomeScreen({ navigation }) {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  header: { flexDirection: "row", justifyContent: "space-between", padding: 16, alignItems: "center" },
+  webContent: { paddingBottom: 40 },
+  header: {
+    flexDirection: "row", justifyContent: "space-between",
+    padding: 16, alignItems: "center",
+    borderBottomWidth: 1, borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
   hello: { fontSize: 18, fontWeight: "600", color: "#1e293b" },
   logout: { color: "#ef4444", fontWeight: "600" },
-  uploadBtn: { margin: 16, marginTop: 0, backgroundColor: "#6366f1", padding: 14, borderRadius: 12, alignItems: "center" },
-  uploadTxt: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  tabs: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, backgroundColor: "#e2e8f0", borderRadius: 12, padding: 4 },
+  actionRow: {
+    flexDirection: "row", marginHorizontal: 16,
+    marginTop: 16, marginBottom: 8, gap: 8,
+  },
+  uploadBtn: {
+    flex: 1, backgroundColor: "#6366f1",
+    padding: 14, borderRadius: 12, alignItems: "center",
+  },
+  createBtn: {
+    flex: 1, backgroundColor: "#10b981",
+    padding: 14, borderRadius: 12, alignItems: "center",
+  },
+  uploadTxt: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+  tabs: {
+    flexDirection: "row", marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: "#e2e8f0", borderRadius: 12, padding: 4,
+  },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
-  activeTab: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  activeTab: {
+    backgroundColor: "#fff", shadowColor: "#000",
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+  },
   tabTxt: { fontSize: 13, fontWeight: "600", color: "#94a3b8" },
   activeTabTxt: { color: "#6366f1" },
-  card: { backgroundColor: "#fff", margin: 8, marginHorizontal: 16, padding: 16, borderRadius: 12, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  card: {
+    backgroundColor: "#fff", margin: 8, marginHorizontal: 16,
+    padding: 16, borderRadius: 12, shadowColor: "#000",
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+  },
   name: { fontSize: 16, fontWeight: "600", color: "#1e293b", marginBottom: 4 },
   meta: { fontSize: 13, color: "#64748b" },
   date: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
   del: { color: "#ef4444", marginTop: 8, fontSize: 13 },
-  sharedFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  sharedFooter: {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginTop: 8,
+  },
   sharedBadge: { color: "#6366f1", fontSize: 12, fontWeight: "600", flex: 1, flexWrap: "wrap" },
-  removeBtn: { backgroundColor: "#ef4444", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, marginLeft: 8 },
+  removeBtn: {
+    backgroundColor: "#ef4444", paddingVertical: 6,
+    paddingHorizontal: 12, borderRadius: 8, marginLeft: 8,
+  },
   removeBtnTxt: { color: "#fff", fontWeight: "bold", fontSize: 12 },
   empty: { textAlign: "center", marginTop: 60, color: "#94a3b8", fontSize: 16 },
 });

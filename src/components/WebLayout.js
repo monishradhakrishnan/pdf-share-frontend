@@ -1,38 +1,35 @@
 import React from "react";
 import { View, Text, StyleSheet, Platform, useWindowDimensions } from "react-native";
+import { useAuth } from "../context/AuthContext";
 
 export default function WebLayout({ children }) {
   if (Platform.OS !== "web") return children;
 
   const { width } = useWindowDimensions();
+  const { token } = useAuth();
   const isMobile = width < 768;
   const isTablet = width >= 768 && width < 1024;
 
+  const showSidebar = !isMobile && !!token;
+
   return (
     <View style={s.outer}>
-      {/* Sidebar — hidden on mobile */}
-      {!isMobile && (
+      {showSidebar && (
         <View style={[s.sidebar, isTablet && s.sidebarTablet]}>
-          {/* Brand */}
           <View>
             <Text style={s.logo}>📄 PDF Share</Text>
             <Text style={s.tagline}>Your documents, anywhere.</Text>
           </View>
-
-          {/* Features */}
           <View style={s.features}>
-            <Feature icon="📤" title="Upload PDFs" desc="Store and manage your documents securely in the cloud." />
+            <Feature icon="📤" title="Upload PDFs"      desc="Store and manage your documents securely in the cloud." />
             <Feature icon="👤" title="Share with Users" desc="Share files with others using custom time limits." />
-            <Feature icon="⏱" title="Auto Expiry" desc="Files automatically disappear after your set time." />
-            <Feature icon="🖨" title="Print Anywhere" desc="Print directly from any device or browser." />
+            <Feature icon="⏱" title="Auto Expiry"       desc="Files automatically disappear after your set time." />
+            <Feature icon="🖨" title="Print Anywhere"   desc="Print directly from any device or browser." />
           </View>
-
-          {/* Footer */}
           <Text style={s.footerTxt}>© 2026 PDF Share. All rights reserved.</Text>
         </View>
       )}
 
-      {/* Main app */}
       <View style={[
         s.appContainer,
         isMobile && s.appFull,
@@ -64,7 +61,6 @@ const s = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     minHeight: "100vh",
   },
-  // ── Sidebar ──────────────────────────────────────────────
   sidebar: {
     width: 340,
     backgroundColor: "#6366f1",
@@ -120,11 +116,10 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
     textAlign: "center",
   },
-  // ── App area ─────────────────────────────────────────────
   appContainer: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    overflow: "hidden",
+    overflow: "visible",
   },
   appFull: {
     width: "100%",

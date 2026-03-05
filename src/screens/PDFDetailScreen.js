@@ -32,11 +32,11 @@ export default function PDFDetailScreen({ route }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [selectedExpiry, setSelectedExpiry] = useState(60); // default 1 hour
+  const [selectedExpiry, setSelectedExpiry] = useState(60);
   const [selectedUser, setSelectedUser] = useState(null);
   const [customHours, setCustomHours] = useState("");
 
-  // ── Download to local cache ──────────────────────────────────
+  // ── Download to local cache (native only) ───────────────────
   const downloadToLocal = async () => {
     setDownloading(true);
     try {
@@ -60,13 +60,30 @@ export default function PDFDetailScreen({ route }) {
     }
   };
 
-  // ── Share file via device share sheet ───────────────────────
+  // ── Download PDF (web: anchor download, native: share sheet) ─
   const handleShare = async () => {
     if (Platform.OS === "web") {
-      // On web, open PDF in new tab
-      window.open(`${BASE_URL}/pdfs/${pdf._id}/download`, "_blank");
+      // Trigger a proper file download via <a download> on web
+      try {
+        const res = await fetch(`${BASE_URL}/pdfs/${pdf._id}/download`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Download failed");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = pdf.originalName || "document.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        Alert.alert("Download Error", e.message || "Could not download PDF");
+      }
       return;
     }
+    // Native: download then share
     const uri = await downloadToLocal();
     if (!uri) return;
     const canShare = await Sharing.isAvailableAsync();
@@ -78,19 +95,46 @@ export default function PDFDetailScreen({ route }) {
     });
   };
 
-  // ── Print ────────────────────────────────────────────────────
+  // ── Print PDF (web: iframe print, native: expo-print) ───────
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      const uri = await downloadToLocal();
-      if (!uri) return;
       if (Platform.OS === "web") {
-        window.open(`${BASE_URL}/pdfs/${pdf._id}/download`, "_blank");
+        // Fetch the PDF as a blob, embed in hidden iframe, then print
+        const res = await fetch(`${BASE_URL}/pdfs/${pdf._id}/download`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Could not load PDF for printing");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = url;
+        document.body.appendChild(iframe);
+
+        iframe.onload = () => {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          } catch (e) {
+            // Fallback: open in new tab so user can print manually
+            window.open(url, "_blank");
+          }
+          // Cleanup after a short delay
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(url);
+          }, 5000);
+        };
       } else {
+        // Native
+        const uri = await downloadToLocal();
+        if (!uri) return;
         await Print.printAsync({ uri });
       }
     } catch (e) {
-      Alert.alert("Error", "Could not print PDF");
+      Alert.alert("Error", e.message || "Could not print PDF");
     } finally {
       setPrinting(false);
     }
@@ -113,14 +157,12 @@ export default function PDFDetailScreen({ route }) {
     }
   };
 
-  // ── Select user from results ─────────────────────────────────
   const handleSelectUser = (user) => {
     setSelectedUser(user);
     setSearchResults([]);
     setSearchEmail(user.email);
   };
 
-  // ── Share with user + expiry ─────────────────────────────────
   const handleShareWithUser = async () => {
     if (!selectedUser) return Alert.alert("No user selected", "Search and select a user first");
 
@@ -144,7 +186,6 @@ export default function PDFDetailScreen({ route }) {
     }
   };
 
-  // ── Close modal ──────────────────────────────────────────────
   const closeModal = () => {
     setShowShareModal(false);
     setSearchEmail("");
@@ -184,7 +225,7 @@ export default function PDFDetailScreen({ route }) {
       </TouchableOpacity>
 
       <TouchableOpacity style={[s.btn, s.shareBtn]} onPress={handleShare} disabled={downloading}>
-        {downloading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>🔗 Share File</Text>}
+        {downloading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>⬇️ Download PDF</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity style={[s.btn, s.printBtn]} onPress={handlePrint} disabled={printing}>
@@ -197,7 +238,6 @@ export default function PDFDetailScreen({ route }) {
           <View style={s.modal}>
             <Text style={s.modalTitle}>👤 Share with User</Text>
 
-            {/* Search bar */}
             <View style={s.searchRow}>
               <TextInput
                 style={s.searchInput}
@@ -215,7 +255,6 @@ export default function PDFDetailScreen({ route }) {
               </TouchableOpacity>
             </View>
 
-            {/* Search results */}
             {searchResults.length > 0 && (
               <View style={s.resultsList}>
                 {searchResults.map((item) => (
@@ -227,14 +266,12 @@ export default function PDFDetailScreen({ route }) {
               </View>
             )}
 
-            {/* Selected user */}
             {selectedUser && (
               <View style={s.selectedUser}>
                 <Text style={s.selectedUserTxt}>✅ {selectedUser.name} ({selectedUser.email})</Text>
               </View>
             )}
 
-            {/* Time limit chips */}
             <Text style={s.expiryLabel}>⏱ Access Time Limit</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.timeScroll}>
               {TIME_OPTIONS.map((opt) => (
@@ -250,7 +287,6 @@ export default function PDFDetailScreen({ route }) {
               ))}
             </ScrollView>
 
-            {/* Custom hours input */}
             {selectedExpiry === "custom" && (
               <View style={s.customRow}>
                 <TextInput
@@ -264,10 +300,8 @@ export default function PDFDetailScreen({ route }) {
               </View>
             )}
 
-            {/* Expiry info text */}
             <Text style={s.expiryInfo}>{expiryInfoText()}</Text>
 
-            {/* Send button */}
             <TouchableOpacity
               style={[s.shareConfirmBtn, (!selectedUser || sharing) && s.btnDisabled]}
               onPress={handleShareWithUser}
