@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "PDF Share",
+    "slug": "pdf-share",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6366f1"
+    },
+    "android": {
+      "package": "com.monish.pdfshare",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#6366f1"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e6c396a6-515c-44d7-93a8-880cf8db81b4"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e6c396a6-515c-44d7-93a8-880cf8db81b4"
+    },
+    "ios": {}
+  }
+}
