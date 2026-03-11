@@ -52,9 +52,34 @@ export default function SignupScreen({ navigation }) {
 
       <TouchableOpacity onPress={() => navigation.navigate("Login")}>
         <Text style={s.link}>Already have an account? Login</Text>
+        
+<View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
+  <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
+  <Text style={{ color: '#64748b', marginHorizontal: 10, fontSize: 13 }}>or</Text>
+  <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
+</View>
+
+<TouchableOpacity
+  style={{
+    borderWidth: 1.5,
+    borderColor: '#4F46E5',
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+  }}
+  onPress={() => navigation.navigate('RequestAccess')}
+>
+  <Text style={{ color: '#4F46E5', fontWeight: '700', fontSize: 15 }}>
+    🔐 Request Access
+  </Text>
+  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 3 }}>
+    Don't have an invite? Submit a request.
+  </Text>
+</TouchableOpacity>
       </TouchableOpacity>
     </View>
   );
+  
 }
 
 const s = StyleSheet.create({
