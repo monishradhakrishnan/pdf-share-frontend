@@ -18,7 +18,7 @@ import ChangePasswordScreen from "./src/screens/ChangePasswordScreen";
 
 
 enableScreens();
-console.log("App.js loaded ✅");
+console.log("App.js loaded â");
 
 const Stack = createNativeStackNavigator();
 
@@ -32,7 +32,6 @@ function AppNavigator() {
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Signup" component={SignupScreen} />
           <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />
-          <Analytics />
         </Stack.Navigator>
       </WebLayout>
     );
@@ -41,13 +40,12 @@ function AppNavigator() {
   return (
     <WebLayout>
       <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: "#6366f1" }, headerTintColor: "#fff" }}>
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: "📄 PDF Share" }} />
+        <Stack.Screen name="Home" component={HomeScreen} options={{ title: "ð PDF Share" }} />
         <Stack.Screen name="Upload" component={UploadScreen} options={{ title: "Upload PDF" }} />
         <Stack.Screen name="CreatePDF" component={CreatePDFScreen} options={{ title: "Create PDF" }} />
         <Stack.Screen name="PDFDetail" component={PDFDetailScreen} options={{ title: "PDF Details" }} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: "Change Password" }} />
-        <Stack.Screen name="Admin" component={AdminScreen} options={{ title: "🔐 Admin Panel" }} />
-        <Analytics />
+        <Stack.Screen name="Admin" component={AdminScreen} options={{ title: "ð Admin Panel" }} />
       </Stack.Navigator>
     </WebLayout>
   );
@@ -58,8 +56,8 @@ function App() {
     <AuthProvider>
       <NavigationContainer>
         <AppNavigator />
-         <Analytics />
       </NavigationContainer>
+      <Analytics />
     </AuthProvider>
   );
 }
