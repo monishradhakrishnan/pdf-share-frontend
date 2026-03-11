@@ -72,6 +72,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+
 const s = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#f8fafc" },
   title: { fontSize: 36, fontWeight: "bold", textAlign: "center", color: "#6366f1", marginBottom: 8 },

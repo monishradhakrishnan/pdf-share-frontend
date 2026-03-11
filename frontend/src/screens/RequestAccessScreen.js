@@ -103,6 +103,7 @@ export default function RequestAccessScreen({ navigation }) {
   );
 }
 
+
 const s = StyleSheet.create({
   container: { flexGrow: 1, padding: 24, backgroundColor: '#f7f8fa', justifyContent: 'center' },
   title: { fontSize: 26, fontWeight: '700', color: '#0f0f0f', marginBottom: 8 },

@@ -168,4 +168,5 @@ const s = StyleSheet.create({
   rejectBtn: { flex: 1, backgroundColor: '#EF4444', borderRadius: 8, padding: 12, alignItems: 'center' },
   actionText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   empty: { color: '#64748b', textAlign: 'center', marginTop: 40, fontSize: 15 },
+
 });

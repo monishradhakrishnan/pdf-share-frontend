@@ -59,6 +59,7 @@ export default function SignupScreen({ navigation }) {
   <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
 </View>
 
+
 <TouchableOpacity
   style={{
     borderWidth: 1.5,

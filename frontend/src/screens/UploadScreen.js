@@ -149,4 +149,5 @@ const s = StyleSheet.create({
   btnTxt: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   cancelBtn: { alignItems: "center", padding: 12 },
   cancelTxt: { color: "#94a3b8", fontSize: 15 },
+
 });

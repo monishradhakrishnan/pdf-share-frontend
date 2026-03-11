@@ -276,4 +276,5 @@ const s = StyleSheet.create({
   removeBtn: { backgroundColor: "#ef4444", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, marginLeft: 8 },
   removeBtnTxt: { color: "#fff", fontWeight: "bold", fontSize: 12 },
   empty: { textAlign: "center", marginTop: 60, color: "#94a3b8", fontSize: 16 },
+
 });

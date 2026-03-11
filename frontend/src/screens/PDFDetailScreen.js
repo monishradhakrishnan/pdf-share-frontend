@@ -313,6 +313,7 @@ export default function PDFDetailScreen({ route }) {
               }
             </TouchableOpacity>
 
+
             <TouchableOpacity style={s.closeBtn} onPress={closeModal}>
               <Text style={s.closeBtnTxt}>Cancel</Text>
             </TouchableOpacity>

@@ -6,6 +6,7 @@ import {
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 
+
 export default function ChangePasswordScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const [oldPassword, setOldPassword] = useState('');
