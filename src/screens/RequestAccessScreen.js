@@ -103,12 +103,13 @@ export default function RequestAccessScreen({ navigation }) {
   );
 }
 
+
 const s = StyleSheet.create({
   container: { flexGrow: 1, padding: 24, backgroundColor: '#f7f8fa', justifyContent: 'center' },
   title: { fontSize: 26, fontWeight: '700', color: '#0f0f0f', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#0d0d0d', marginBottom: 28, lineHeight: 20 },
   input: {
-    backgroundColor: '#f8fafd', color: '#f1f5f9', borderRadius: 10,
+    backgroundColor: '#f8fafd', color: '#0f0f0f', borderRadius: 10, // ✅ fixed: was '#f1f5f9' (near white, invisible)
     padding: 14, marginBottom: 14, fontSize: 15, borderWidth: 1, borderColor: '#0f0f0f',
   },
   textarea: { height: 110 },
@@ -116,6 +117,6 @@ const s = StyleSheet.create({
     backgroundColor: '#121212', borderRadius: 10, padding: 15,
     alignItems: 'center', marginTop: 4, marginBottom: 16,
   },
-  btnText: { color: '#121212', fontWeight: '700', fontSize: 16 },
+  btnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 }, // ✅ fixed: was '#121212' (invisible on dark button)
   back: { color: '#0f0f0f', textAlign: 'center', fontSize: 14 },
 });
