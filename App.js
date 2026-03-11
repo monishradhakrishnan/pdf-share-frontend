@@ -1,4 +1,4 @@
-import { AppRegistry, Platform } from "react-native";
+import { AppRegistry } from "react-native";
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -11,7 +11,6 @@ import HomeScreen from "./src/screens/HomeScreen";
 import UploadScreen from "./src/screens/UploadScreen";
 import PDFDetailScreen from "./src/screens/PDFDetailScreen";
 import CreatePDFScreen from "./src/screens/CreatePDFScreen";
-import { Analytics } from "@vercel/analytics/react";
 
 enableScreens();
 console.log("App.js loaded ✅");
@@ -53,7 +52,6 @@ function App() {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      {Platform.OS === "web" && <Analytics />}
     </AuthProvider>
   );
 }
