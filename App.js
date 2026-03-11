@@ -32,6 +32,7 @@ function AppNavigator() {
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Signup" component={SignupScreen} />
           <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />
+          <Analytics />
         </Stack.Navigator>
       </WebLayout>
     );
@@ -46,6 +47,7 @@ function AppNavigator() {
         <Stack.Screen name="PDFDetail" component={PDFDetailScreen} options={{ title: "PDF Details" }} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: "Change Password" }} />
         <Stack.Screen name="Admin" component={AdminScreen} options={{ title: "🔐 Admin Panel" }} />
+        <Analytics />
       </Stack.Navigator>
     </WebLayout>
   );
