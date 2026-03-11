@@ -114,9 +114,10 @@ const s = StyleSheet.create({
   },
   textarea: { height: 110 },
   btn: {
-    backgroundColor: '#121212', borderRadius: 10, padding: 15,
+    backgroundColor: '#ffffff', borderRadius: 10, padding: 15,
     alignItems: 'center', marginTop: 4, marginBottom: 16,
+    borderWidth: 1, borderColor: '#e2e8f0',
   },
-  btnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 }, // ✅ fixed: was '#121212' (invisible on dark button)
+  btnText: { color: '#121212', fontWeight: '700', fontSize: 16 },
   back: { color: '#0f0f0f', textAlign: 'center', fontSize: 14 },
 });
