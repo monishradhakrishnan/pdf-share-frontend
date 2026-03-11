@@ -116,6 +116,6 @@ const s = StyleSheet.create({
     backgroundColor: '#121212', borderRadius: 10, padding: 15,
     alignItems: 'center', marginTop: 4, marginBottom: 16,
   },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btnText: { color: '#121212', fontWeight: '700', fontSize: 16 },
   back: { color: '#0f0f0f', textAlign: 'center', fontSize: 14 },
 });
