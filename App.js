@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { enableScreens } from "react-native-screens";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import WebLayout from "./src/components/WebLayout";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react";
 import LoginScreen from "./src/screens/Loginscreen";
 import SignupScreen from "./src/screens/SignupScreen";
 import RequestAccessScreen from "./src/screens/RequestAccessScreen";
