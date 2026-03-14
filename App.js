@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import WebLayout from "./src/components/WebLayout";
 import { Analytics } from "@vercel/analytics/react";
 import LoginScreen from "./src/screens/Loginscreen";
-import SignupScreen from "./src/screens/SignupScreen";
 import RequestAccessScreen from "./src/screens/RequestAccessScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import UploadScreen from "./src/screens/UploadScreen";
@@ -69,7 +68,6 @@ function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />
           </>
         )}

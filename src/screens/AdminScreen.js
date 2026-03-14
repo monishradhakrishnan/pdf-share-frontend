@@ -145,27 +145,27 @@ function Detail({ label, value }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
+  container: { flex: 1, backgroundColor: '#ffffff', padding: 16 }, // black background
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 8 },
-  title: { fontSize: 22, fontWeight: '700', color: '#f1f5f9', marginBottom: 2 },
-  count: { fontSize: 13, color: '#64748b' },
-  logoutBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  logoutText: { color: '#EF4444', fontWeight: '700', fontSize: 13 },
+  title: { fontSize: 22, fontWeight: '700', color: '#000000', marginBottom: 2 }, // white text
+  count: { fontSize: 13, color: '#000000' }, // light gray
+  logoutBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#000', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }, // black border
+  logoutText: { color: '#000', fontWeight: '700', fontSize: 13 }, // black text
   card: {
-    backgroundColor: '#1e293b', borderRadius: 12, padding: 16,
-    marginBottom: 12, borderWidth: 1, borderColor: '#334155',
-  },
+    backgroundColor: '#111', borderRadius: 12, padding: 16,
+    marginBottom: 12, borderWidth: 1, borderColor: '#333',
+  }, // dark card
   row: { flexDirection: 'row', alignItems: 'center' },
-  name: { fontSize: 16, fontWeight: '600', color: '#f1f5f9' },
-  email: { fontSize: 13, color: '#94a3b8', marginTop: 2 },
-  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  detail: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 12 },
-  label: { fontSize: 11, color: '#64748b', fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 },
-  value: { fontSize: 14, color: '#cbd5e1', lineHeight: 20 },
+  name: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  email: { fontSize: 13, color: '#aaa', marginTop: 2 },
+  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#555' },
+  badgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  detail: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#444', paddingTop: 12 },
+  label: { fontSize: 11, color: '#5d5b5b', fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 },
+  value: { fontSize: 14, color: '#ccc', lineHeight: 20 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  approveBtn: { flex: 1, backgroundColor: '#10B981', borderRadius: 8, padding: 12, alignItems: 'center' },
-  rejectBtn: { flex: 1, backgroundColor: '#EF4444', borderRadius: 8, padding: 12, alignItems: 'center' },
+  approveBtn: { flex: 1, backgroundColor: '#444', borderRadius: 8, padding: 12, alignItems: 'center' },
+  rejectBtn: { flex: 1, backgroundColor: '#222', borderRadius: 8, padding: 12, alignItems: 'center' },
   actionText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  empty: { color: '#64748b', textAlign: 'center', marginTop: 40, fontSize: 15 },
+  empty: { color: '#ccc', textAlign: 'center', marginTop: 40, fontSize: 15 },
 });
