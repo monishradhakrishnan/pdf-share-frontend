@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, StatusBar, Platform, useWindowDimensions
 } from "react-native";
-import { login } from "../api";
+import { login } from "./api";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen({ navigation }) {
