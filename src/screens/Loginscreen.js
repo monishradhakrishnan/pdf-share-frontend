@@ -5,7 +5,6 @@ import {
 } from "react-native";
 import { login } from "../api";
 import { useAuth } from "../context/AuthContext";
-import { Platform } from "react-native";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
