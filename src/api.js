@@ -1,7 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native";
 
-
 export const BASE_URL = "https://pdf-share-backend.onrender.com/api"; // ← Replace with YOUR PC's IPv4
 
 const api = axios.create({ baseURL: BASE_URL });
@@ -27,8 +26,8 @@ export const downloadURL     = (id)   => `${BASE_URL}/pdfs/${id}/download`;
 export const searchUsers     = (q)    => api.get(`/users/search?email=${q}`);
 export const getSharedWithMe = ()     => api.get("/pdfs/shared/with-me");
 export const removeSharedPDF = (id)   => api.delete(`/pdfs/${id}/shared`);
-export const sharePDF = (id, userId, expiryMinutes) => api.post(`/pdfs/${id}/share`, { userId, expiryMinutes });
-
+export const sharePDF = (id, userId, expiryMinutes) =>
+  api.post(`/pdfs/${id}/share`, { userId, expiryMinutes });
 export const uploadPDF = async (file, token) => {
   const form = new FormData();
   const cleanName = decodeURIComponent(file.name);
@@ -37,5 +36,21 @@ export const uploadPDF = async (file, token) => {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
   });
 };
+
+// ── Print Request ─────────────────────────────────────────────
+export const getPrintShops      = ()                                          => api.get("/print/shops");
+export const submitPrintRequest = (pdfId, copies, printAdminId, disappearAfterPrint = false, colorMode = "bw") =>
+  api.post("/print/request", { pdfId, copies, printAdminId, disappearAfterPrint, colorMode });
+export const getMyPrintRequests = () => api.get("/print/my-requests");
+export const getPrintQueue      = () => api.get("/print/queue");
+export const getPrintBills      = () => api.get("/print/bills");
+export const markAsPrinted      = (id) => api.patch(`/print/${id}/print`);
+export const rejectPrintRequest = (id, reason) =>
+  api.patch(`/print/${id}/reject`, { reason });
+
+// ── Notifications ─────────────────────────────────────────────
+export const getNotifications   = () => api.get("/notifications");
+export const markNotifRead      = (id) => api.patch(`/notifications/${id}/read`);
+export const markAllNotifsRead  = () => api.patch("/notifications/read-all");
 
 export default api;

@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { getPDFs, deletePDF, getSharedWithMe, removeSharedPDF } from "../api";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "../components/NotificationBell";
 
 export default function HomeScreen({ navigation }) {
   const [tab, setTab] = useState("all");
@@ -13,6 +14,8 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+
+  const isPrintAdmin = user?.role === "print_admin";
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -109,20 +112,19 @@ export default function HomeScreen({ navigation }) {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.hello}>Hello, {user?.name} 👋</Text>
-        <TouchableOpacity onPress={() => setMenuOpen(o => !o)} style={s.menuBtn}>
-          <Text style={s.menuIcon}>⚙️</Text>
-        </TouchableOpacity>
+        <View style={s.headerRight}>
+          {/* Notification bell — hidden for print_admin (they use PrintQueue) */}
+          {!isPrintAdmin && <NotificationBell />}
+          <TouchableOpacity onPress={() => setMenuOpen(o => !o)} style={s.menuBtn}>
+            <Text style={s.menuIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Dropdown — rendered outside ScrollView so it's not clipped */}
+      {/* Dropdown */}
       {menuOpen && (
         <>
-          {/* Invisible overlay to close menu on outside click */}
-          <TouchableOpacity
-            style={s.overlay}
-            onPress={() => setMenuOpen(false)}
-            activeOpacity={1}
-          />
+          <TouchableOpacity style={s.overlay} onPress={() => setMenuOpen(false)} activeOpacity={1} />
           <View style={s.dropdown}>
             <TouchableOpacity
               style={s.dropdownItem}
@@ -130,6 +132,7 @@ export default function HomeScreen({ navigation }) {
             >
               <Text style={s.dropdownTxt}>🔐 Change Password</Text>
             </TouchableOpacity>
+
             {user?.role === "admin" && (
               <>
                 <View style={s.divider} />
@@ -141,6 +144,31 @@ export default function HomeScreen({ navigation }) {
                 </TouchableOpacity>
               </>
             )}
+
+            {isPrintAdmin && (
+              <>
+                <View style={s.divider} />
+                <TouchableOpacity
+                  style={s.dropdownItem}
+                  onPress={() => { setMenuOpen(false); navigation.navigate("PrintQueue"); }}
+                >
+                  <Text style={s.dropdownTxt}>🖨️ Print Queue</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {!isPrintAdmin && (
+              <>
+                <View style={s.divider} />
+                <TouchableOpacity
+                  style={s.dropdownItem}
+                  onPress={() => { setMenuOpen(false); navigation.navigate("MyRequests"); }}
+                >
+                  <Text style={s.dropdownTxt}>📋 My Print Requests</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
             <View style={s.divider} />
             <TouchableOpacity
               style={s.dropdownItem}
@@ -152,15 +180,27 @@ export default function HomeScreen({ navigation }) {
         </>
       )}
 
-      {/* Action Buttons */}
-      <View style={s.actionRow}>
-        <TouchableOpacity style={s.uploadBtn} onPress={() => navigation.navigate("Upload")}>
-          <Text style={s.uploadTxt}>⬆ Upload PDF</Text>
+      {/* Action Buttons — hidden for print_admin */}
+      {!isPrintAdmin && (
+        <View style={s.actionRow}>
+          <TouchableOpacity style={s.uploadBtn} onPress={() => navigation.navigate("Upload")}>
+            <Text style={s.uploadTxt}>⬆ Upload PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.createBtn} onPress={() => navigation.navigate("CreatePDF")}>
+            <Text style={s.uploadTxt}>📝 Create PDF</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Print Admin shortcut banner */}
+      {isPrintAdmin && (
+        <TouchableOpacity
+          style={s.printAdminBanner}
+          onPress={() => navigation.navigate("PrintQueue")}
+        >
+          <Text style={s.printAdminBannerTxt}>🖨️ Go to Print Queue →</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.createBtn} onPress={() => navigation.navigate("CreatePDF")}>
-          <Text style={s.uploadTxt}>📝 Create PDF</Text>
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Tabs */}
       <View style={s.tabs}>
@@ -178,15 +218,10 @@ export default function HomeScreen({ navigation }) {
     </>
   );
 
-  // ── Web layout ───────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
       <View style={{ flex: 1 }}>
-        <ScrollView
-          style={s.container}
-          contentContainerStyle={s.webContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={s.container} contentContainerStyle={s.webContent} showsVerticalScrollIndicator={false}>
           {content}
           {data.length === 0 ? (
             <Text style={s.empty}>
@@ -200,7 +235,6 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
-  // ── Native layout ────────────────────────────────────────────
   return (
     <View style={s.container}>
       {content}
@@ -226,34 +260,32 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row", justifyContent: "space-between",
     padding: 16, alignItems: "center",
-    borderBottomWidth: 1, borderColor: "#e2e8f0",
-    backgroundColor: "#fff",
+    borderBottomWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#fff",
   },
   hello: { fontSize: 18, fontWeight: "600", color: "#1e293b" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 4 },
   menuBtn: { padding: 6 },
   menuIcon: { fontSize: 22 },
-  overlay: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 998,
-  },
+  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 },
   dropdown: {
     position: "absolute", top: 58, right: 12,
     backgroundColor: "#fff", borderRadius: 12,
-    shadowColor: "#000", shadowOpacity: 0.15,
-    shadowRadius: 10, elevation: 8,
-    minWidth: 200, zIndex: 999,
-    borderWidth: 1, borderColor: "#e2e8f0",
+    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
+    minWidth: 200, zIndex: 999, borderWidth: 1, borderColor: "#e2e8f0",
   },
   dropdownItem: { padding: 16 },
   dropdownTxt: { fontSize: 15, fontWeight: "600", color: "#1e293b" },
   divider: { height: 1, backgroundColor: "#e2e8f0" },
-  actionRow: {
-    flexDirection: "row", marginHorizontal: 16,
-    marginTop: 16, marginBottom: 8, gap: 8,
-  },
+  actionRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 16, marginBottom: 8, gap: 8 },
   uploadBtn: { flex: 1, backgroundColor: "#6366f1", padding: 14, borderRadius: 12, alignItems: "center" },
   createBtn: { flex: 1, backgroundColor: "#10b981", padding: 14, borderRadius: 12, alignItems: "center" },
   uploadTxt: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+  printAdminBanner: {
+    margin: 16, backgroundColor: "#f0fdf4", borderRadius: 12,
+    padding: 14, alignItems: "center",
+    borderWidth: 1, borderColor: "#bbf7d0",
+  },
+  printAdminBannerTxt: { color: "#16a34a", fontWeight: "700", fontSize: 15 },
   tabs: {
     flexDirection: "row", marginHorizontal: 16, marginBottom: 8,
     backgroundColor: "#e2e8f0", borderRadius: 12, padding: 4,

@@ -12,9 +12,10 @@ import HomeScreen from "./src/screens/HomeScreen";
 import UploadScreen from "./src/screens/UploadScreen";
 import PDFDetailScreen from "./src/screens/PDFDetailScreen";
 import CreatePDFScreen from "./src/screens/CreatePDFScreen";
-import ChangePasswordScreen from "./src/screens/ChangePasswordScreen"; // ✅ Fixed: was missing
-import AdminScreen from "./src/screens/AdminScreen"; // ✅ Fixed: was missing
-
+import ChangePasswordScreen from "./src/screens/ChangePasswordScreen";
+import AdminScreen from "./src/screens/AdminScreen";
+import PrintQueueScreen from "./src/screens/PrintQueueScreen";
+import MyRequestsScreen from "./src/screens/MyRequestsScreen";
 
 enableScreens();
 console.log("App.js loaded ✅");
@@ -23,7 +24,6 @@ const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
   const { token } = useAuth();
-
   return (
     <WebLayout>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -64,6 +64,16 @@ function AppNavigator() {
               component={AdminScreen}
               options={{ headerShown: true, title: "🔐 Admin Panel" }}
             />
+            <Stack.Screen
+              name="PrintQueue"
+              component={PrintQueueScreen}
+              options={{ headerShown: true, title: "🖨️ Print Queue" }}
+            />
+            <Stack.Screen
+              name="MyRequests"
+              component={MyRequestsScreen}
+              options={{ headerShown: true, title: "📋 My Print Requests" }}
+            />
           </>
         ) : (
           <>
@@ -88,5 +98,4 @@ function App() {
 }
 
 AppRegistry.registerComponent("main", () => App);
-
 export default App;
