@@ -25,7 +25,6 @@ export default function PDFDetailScreen({ route }) {
   const { pdf } = route.params;
   const { token } = useAuth();
 
-  // Share modal state
   const [downloading, setDownloading]       = useState(false);
   const [printing, setPrinting]             = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -37,32 +36,54 @@ export default function PDFDetailScreen({ route }) {
   const [selectedUser, setSelectedUser]     = useState(null);
   const [customHours, setCustomHours]       = useState("");
 
-  // Print request state
   const [showPrintModal, setShowPrintModal]           = useState(false);
   const [printStep, setPrintStep]                     = useState(1);
   const [shops, setShops]                             = useState([]);
   const [shopsLoading, setShopsLoading]               = useState(false);
+  const [shopsError, setShopsError]                   = useState(null);
   const [selectedShop, setSelectedShop]               = useState(null);
   const [copies, setCopies]                           = useState("1");
   const [colorMode, setColorMode]                     = useState("bw");
   const [disappearAfterPrint, setDisappearAfterPrint] = useState(false);
   const [submitting, setSubmitting]                   = useState(false);
 
-  // ── Download to local cache (native only) ────────────────────
+  // ── Download to local cache (native only) ─────────────────────
   const downloadToLocal = async () => {
     setDownloading(true);
     try {
       const safeFilename = pdf.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const localUri = FileSystem.documentDirectory + safeFilename;
+
+      // Always delete stale cached file — avoids reusing a broken 0-byte file
+      const existing = await FileSystem.getInfoAsync(localUri);
+      if (existing.exists) {
+        await FileSystem.deleteAsync(localUri, { idempotent: true });
+      }
+
       const result = await FileSystem.downloadAsync(
         `${BASE_URL}/pdfs/${pdf._id}/download`,
         localUri,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       if (result.status !== 200) {
-        Alert.alert("Error", `Server returned status ${result.status}`);
+        Alert.alert(
+          "Error",
+          `Server returned status ${result.status}. The server may be waking up — please try again in 15 seconds.`
+        );
         return null;
       }
+
+      // Validate the file is not empty (Render cold-start can return 0-byte files)
+      const fileInfo = await FileSystem.getInfoAsync(result.uri);
+      if (!fileInfo.exists || fileInfo.size === 0) {
+        Alert.alert(
+          "Download Incomplete",
+          "The server is still waking up. Please wait 15 seconds and try again."
+        );
+        return null;
+      }
+
       return result.uri;
     } catch (e) {
       Alert.alert("Download Error", e.message || "Could not download PDF");
@@ -133,7 +154,33 @@ export default function PDFDetailScreen({ route }) {
       } else {
         const uri = await downloadToLocal();
         if (!uri) return;
-        await Print.printAsync({ uri });
+
+        try {
+          await Print.printAsync({ uri });
+        } catch (printErr) {
+          // expo-print shows "No print shops" when no printer is configured
+          // OR when the file URI is bad — fall back to share sheet either way
+          Alert.alert(
+            "Print Unavailable",
+            "No printer was found on this device. Would you like to open the PDF to print from another app?",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Open PDF",
+                onPress: async () => {
+                  const canShare = await Sharing.isAvailableAsync();
+                  if (canShare) {
+                    await Sharing.shareAsync(uri, {
+                      mimeType: "application/pdf",
+                      dialogTitle: "Open PDF to Print",
+                      UTI: "com.adobe.pdf",
+                    });
+                  }
+                },
+              },
+            ]
+          );
+        }
       }
     } catch (e) {
       Alert.alert("Error", e.message || "Could not print PDF");
@@ -142,7 +189,7 @@ export default function PDFDetailScreen({ route }) {
     }
   };
 
-  // ── Share modal handlers ──────────────────────────────────────
+  // ── Share modal handlers ───────────────────────────────────────
   const handleSearch = async () => {
     if (!searchEmail.trim()) return;
     setSearching(true);
@@ -199,22 +246,32 @@ export default function PDFDetailScreen({ route }) {
     setCustomHours("");
   };
 
-  // ── Print modal handlers ──────────────────────────────────────
+  // ── Print modal handlers ───────────────────────────────────────
+  const loadShops = async () => {
+    setShopsError(null);
+    setShopsLoading(true);
+    try {
+      const { data } = await getPrintShops();
+      if (!data || data.length === 0) {
+        setShopsError("no_shops");
+      } else {
+        setShops(data);
+      }
+    } catch (e) {
+      setShopsError(!e.response ? "network" : "server");
+    } finally {
+      setShopsLoading(false);
+    }
+  };
+
   const openPrintModal = async () => {
     setShowPrintModal(true);
     setPrintStep(1);
     setSelectedShop(null);
     setCopies("1");
     setDisappearAfterPrint(false);
-    setShopsLoading(true);
-    try {
-      const { data } = await getPrintShops();
-      setShops(data);
-    } catch {
-      Alert.alert("Error", "Could not load print shops");
-    } finally {
-      setShopsLoading(false);
-    }
+    setShops([]);
+    await loadShops();
   };
 
   const closePrintModal = () => {
@@ -225,6 +282,7 @@ export default function PDFDetailScreen({ route }) {
     setDisappearAfterPrint(false);
     setSelectedShop(null);
     setShops([]);
+    setShopsError(null);
   };
 
   const handleSubmitPrint = async () => {
@@ -254,6 +312,27 @@ export default function PDFDetailScreen({ route }) {
     if (selectedExpiry === "custom")
       return customHours ? `📅 PDF will disappear after ${customHours} minute(s)` : "Enter custom minutes above";
     return `📅 PDF will disappear after ${TIME_OPTIONS.find(o => o.value === selectedExpiry)?.label}`;
+  };
+
+  const shopsErrorContent = () => {
+    if (shopsError === "no_shops") return {
+      icon: "🏪",
+      title: "No Print Shops Available",
+      sub: "No print shops have been registered yet. Check back later.",
+      canRetry: false,
+    };
+    if (shopsError === "network") return {
+      icon: "📡",
+      title: "Server is Waking Up",
+      sub: "The server is starting up (~15 sec on free tier). Tap Retry in a moment.",
+      canRetry: true,
+    };
+    return {
+      icon: "⚠️",
+      title: "Could Not Load Shops",
+      sub: "Something went wrong. Please try again.",
+      canRetry: true,
+    };
   };
 
   return (
@@ -288,7 +367,7 @@ export default function PDFDetailScreen({ route }) {
         {printing ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>🖨 Print PDF</Text>}
       </TouchableOpacity>
 
-      {/* ── Share with User Modal ─────────────────────────────── */}
+      {/* ── Share with User Modal ──────────────────────────────── */}
       <Modal visible={showShareModal} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modal}>
@@ -378,7 +457,7 @@ export default function PDFDetailScreen({ route }) {
         </View>
       </Modal>
 
-      {/* ── Send to Print Modal ───────────────────────────────── */}
+      {/* ── Send to Print Modal ────────────────────────────────── */}
       <Modal visible={showPrintModal} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modal}>
@@ -392,9 +471,21 @@ export default function PDFDetailScreen({ route }) {
                 </View>
 
                 {shopsLoading ? (
-                  <ActivityIndicator size="large" color="#6366f1" style={{ marginVertical: 32 }} />
-                ) : shops.length === 0 ? (
-                  <Text style={s.emptyShops}>No print shops available right now.</Text>
+                  <View style={s.shopsLoadingBox}>
+                    <ActivityIndicator size="large" color="#6366f1" />
+                    <Text style={s.shopsLoadingTxt}>Loading print shops…</Text>
+                  </View>
+                ) : shopsError ? (
+                  <View style={s.shopsErrorBox}>
+                    <Text style={s.shopsErrorIcon}>{shopsErrorContent().icon}</Text>
+                    <Text style={s.shopsErrorTitle}>{shopsErrorContent().title}</Text>
+                    <Text style={s.shopsErrorSub}>{shopsErrorContent().sub}</Text>
+                    {shopsErrorContent().canRetry && (
+                      <TouchableOpacity style={s.retryBtn} onPress={loadShops}>
+                        <Text style={s.retryBtnTxt}>🔄 Retry</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 ) : (
                   <ScrollView style={{ maxHeight: 320 }}>
                     {shops.map((shop) => (
@@ -418,9 +509,9 @@ export default function PDFDetailScreen({ route }) {
                 )}
 
                 <TouchableOpacity
-                  style={[s.shareConfirmBtn, !selectedShop && s.btnDisabled]}
+                  style={[s.shareConfirmBtn, (!selectedShop || !!shopsError) && s.btnDisabled]}
                   onPress={() => selectedShop && setPrintStep(2)}
-                  disabled={!selectedShop}
+                  disabled={!selectedShop || !!shopsError}
                 >
                   <Text style={s.btnTxt}>Next: Set Copies →</Text>
                 </TouchableOpacity>
@@ -469,7 +560,6 @@ export default function PDFDetailScreen({ route }) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Color mode toggle */}
                 <Text style={s.expiryLabel}>Print Mode</Text>
                 <View style={s.colorModeRow}>
                   <TouchableOpacity
@@ -494,7 +584,6 @@ export default function PDFDetailScreen({ route }) {
                   📋 Request will be added to {selectedShop?.name}'s queue in FCFS order.
                 </Text>
 
-                {/* Disappear after print toggle */}
                 <TouchableOpacity
                   style={[s.toggleRow, disappearAfterPrint && s.toggleRowActive]}
                   onPress={() => setDisappearAfterPrint(v => !v)}
@@ -581,7 +670,6 @@ const s = StyleSheet.create({
   shareConfirmBtn: { backgroundColor: "#6366f1", padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 8 },
   closeBtn: { alignItems: "center", padding: 12 },
   closeBtnTxt: { color: "#ef4444", fontWeight: "600", fontSize: 15 },
-  // Print shop selection
   printFileInfo: { backgroundColor: "#f0f9ff", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#bae6fd" },
   printFileName: { fontSize: 14, fontWeight: "600", color: "#0369a1" },
   shopCard: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#f8fafc", marginBottom: 10 },
@@ -591,7 +679,14 @@ const s = StyleSheet.create({
   queueChip: { backgroundColor: "#f59e0b", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   queueChipFree: { backgroundColor: "#10b981" },
   queueChipTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  emptyShops: { textAlign: "center", color: "#94a3b8", fontSize: 15, marginVertical: 32 },
+  shopsLoadingBox: { alignItems: "center", paddingVertical: 32 },
+  shopsLoadingTxt: { color: "#64748b", fontSize: 14, marginTop: 12 },
+  shopsErrorBox: { alignItems: "center", paddingVertical: 24, paddingHorizontal: 16 },
+  shopsErrorIcon: { fontSize: 40, marginBottom: 10 },
+  shopsErrorTitle: { fontSize: 16, fontWeight: "700", color: "#1e293b", marginBottom: 6, textAlign: "center" },
+  shopsErrorSub: { fontSize: 13, color: "#64748b", textAlign: "center", marginBottom: 16 },
+  retryBtn: { backgroundColor: "#6366f1", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
+  retryBtnTxt: { color: "#fff", fontWeight: "700", fontSize: 14 },
   selectedShopRow: { backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#bbf7d0" },
   selectedShopTxt: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
   selectedShopQueue: { fontSize: 12, color: "#16a34a", marginTop: 2 },
@@ -599,7 +694,6 @@ const s = StyleSheet.create({
   copiesBtn: { backgroundColor: "#6366f1", width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   copiesBtnTxt: { color: "#fff", fontSize: 22, fontWeight: "bold", lineHeight: 26 },
   copiesInput: { width: 64, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 10, padding: 10, fontSize: 20, fontWeight: "bold", color: "#1e293b", backgroundColor: "#f8fafc" },
-  // Disappear toggle
   colorModeRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   colorChip: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#f8fafc", alignItems: "center" },
   colorChipActive: { borderColor: "#1e293b", backgroundColor: "#1e293b" },
