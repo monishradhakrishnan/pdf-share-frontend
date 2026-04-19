@@ -25,27 +25,27 @@ export default function PDFDetailScreen({ route }) {
   const { pdf } = route.params;
   const { token } = useAuth();
 
-  const [downloading, setDownloading]       = useState(false);
-  const [printing, setPrinting]             = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [searchEmail, setSearchEmail]       = useState("");
-  const [searchResults, setSearchResults]   = useState([]);
-  const [searching, setSearching]           = useState(false);
-  const [sharing, setSharing]               = useState(false);
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [selectedExpiry, setSelectedExpiry] = useState(60);
-  const [selectedUser, setSelectedUser]     = useState(null);
-  const [customHours, setCustomHours]       = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [customHours, setCustomHours] = useState("");
 
-  const [showPrintModal, setShowPrintModal]           = useState(false);
-  const [printStep, setPrintStep]                     = useState(1);
-  const [shops, setShops]                             = useState([]);
-  const [shopsLoading, setShopsLoading]               = useState(false);
-  const [shopsError, setShopsError]                   = useState(null);
-  const [selectedShop, setSelectedShop]               = useState(null);
-  const [copies, setCopies]                           = useState("1");
-  const [colorMode, setColorMode]                     = useState("bw");
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printStep, setPrintStep] = useState(1);
+  const [shops, setShops] = useState([]);
+  const [shopsLoading, setShopsLoading] = useState(false);
+  const [shopsError, setShopsError] = useState(null);
+  const [selectedShop, setSelectedShop] = useState(null);
+  const [copies, setCopies] = useState("1");
+  const [colorMode, setColorMode] = useState("bw");
   const [disappearAfterPrint, setDisappearAfterPrint] = useState(false);
-  const [submitting, setSubmitting]                   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // ── Download to local cache (native only) ─────────────────────
   const downloadToLocal = async () => {
@@ -54,7 +54,6 @@ export default function PDFDetailScreen({ route }) {
       const safeFilename = pdf.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const localUri = FileSystem.documentDirectory + safeFilename;
 
-      // Always delete stale cached file — avoids reusing a broken 0-byte file
       const existing = await FileSystem.getInfoAsync(localUri);
       if (existing.exists) {
         await FileSystem.deleteAsync(localUri, { idempotent: true });
@@ -74,7 +73,6 @@ export default function PDFDetailScreen({ route }) {
         return null;
       }
 
-      // Validate the file is not empty (Render cold-start can return 0-byte files)
       const fileInfo = await FileSystem.getInfoAsync(result.uri);
       if (!fileInfo.exists || fileInfo.size === 0) {
         Alert.alert(
@@ -114,10 +112,13 @@ export default function PDFDetailScreen({ route }) {
       }
       return;
     }
+
     const uri = await downloadToLocal();
     if (!uri) return;
+
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) return Alert.alert("Error", "Sharing not available on this device");
+
     await Sharing.shareAsync(uri, {
       mimeType: "application/pdf",
       dialogTitle: `Share ${pdf.originalName}`,
@@ -158,8 +159,6 @@ export default function PDFDetailScreen({ route }) {
         try {
           await Print.printAsync({ uri });
         } catch (printErr) {
-          // expo-print shows "No print shops" when no printer is configured
-          // OR when the file URI is bad — fall back to share sheet either way
           Alert.alert(
             "Print Unavailable",
             "No printer was found on this device. Would you like to open the PDF to print from another app?",
@@ -218,13 +217,17 @@ export default function PDFDetailScreen({ route }) {
 
   const handleShareWithUser = async () => {
     if (!selectedUser) return Alert.alert("No user selected", "Search and select a user first");
+
     let expiryHours = selectedExpiry;
+
     if (selectedExpiry === "custom") {
       const parsed = parseFloat(customHours);
-      if (!customHours || isNaN(parsed) || parsed <= 0)
-        return Alert.alert("Invalid time", "Please enter a valid number of hours");
-      expiryHours = parsed;
+      if (!customHours || isNaN(parsed) || parsed <= 0) {
+        return Alert.alert("Invalid time", "Please enter a valid number of minutes");
+      }
+      expiryHours = parsed / 60;
     }
+
     setSharing(true);
     try {
       const { data } = await sharePDF(pdf._id, selectedUser._id, expiryHours);
@@ -242,7 +245,7 @@ export default function PDFDetailScreen({ route }) {
     setSearchEmail("");
     setSearchResults([]);
     setSelectedUser(null);
-    setSelectedExpiry(24);
+    setSelectedExpiry(60);
     setCustomHours("");
   };
 
@@ -286,16 +289,22 @@ export default function PDFDetailScreen({ route }) {
   };
 
   const handleSubmitPrint = async () => {
+    if (!selectedShop) {
+      return Alert.alert("No shop selected", "Please choose a print shop first");
+    }
+
     const num = parseInt(copies, 10);
-    if (!copies || isNaN(num) || num < 1)
+    if (!copies || isNaN(num) || num < 1) {
       return Alert.alert("Invalid", "Please enter a valid number of copies (min 1)");
+    }
+
     setSubmitting(true);
     try {
       await submitPrintRequest(pdf._id, num, selectedShop._id, disappearAfterPrint, colorMode);
       Alert.alert(
         "Sent! 🖨️",
         `Print request submitted to ${selectedShop.name} for ${num} cop${num === 1 ? "y" : "ies"}.` +
-        (disappearAfterPrint ? "\n\n🗑 PDF will be deleted after printing." : "")
+          (disappearAfterPrint ? "\n\n🗑 PDF will be deleted after printing." : "")
       );
       closePrintModal();
     } catch (e) {
@@ -309,8 +318,11 @@ export default function PDFDetailScreen({ route }) {
 
   const expiryInfoText = () => {
     if (selectedExpiry === null) return "♾ PDF will stay until manually removed";
-    if (selectedExpiry === "custom")
-      return customHours ? `📅 PDF will disappear after ${customHours} minute(s)` : "Enter custom minutes above";
+    if (selectedExpiry === "custom") {
+      return customHours
+        ? `📅 PDF will disappear after ${customHours} minute(s)`
+        : "Enter custom minutes above";
+    }
     return `📅 PDF will disappear after ${TIME_OPTIONS.find(o => o.value === selectedExpiry)?.label}`;
   };
 
