@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, Platform, Modal, TextInput, ScrollView
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
@@ -25,71 +26,62 @@ export default function PDFDetailScreen({ route }) {
   const { pdf } = route.params;
   const { token } = useAuth();
 
-  const [downloading, setDownloading] = useState(false);
-  const [printing, setPrinting] = useState(false);
+  // Share modal state
+  const [downloading, setDownloading]       = useState(false);
+  const [printing, setPrinting]             = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [searchEmail, setSearchEmail]       = useState("");
+  const [searchResults, setSearchResults]   = useState([]);
+  const [searching, setSearching]           = useState(false);
+  const [sharing, setSharing]               = useState(false);
   const [selectedExpiry, setSelectedExpiry] = useState(60);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [customHours, setCustomHours] = useState("");
+  const [selectedUser, setSelectedUser]     = useState(null);
+  const [customHours, setCustomHours]       = useState("");
 
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printStep, setPrintStep] = useState(1);
-  const [shops, setShops] = useState([]);
-  const [shopsLoading, setShopsLoading] = useState(false);
-  const [shopsError, setShopsError] = useState(null);
-  const [selectedShop, setSelectedShop] = useState(null);
-  const [copies, setCopies] = useState("1");
-  const [colorMode, setColorMode] = useState("bw");
+  // Print request state
+  const [showPrintModal, setShowPrintModal]           = useState(false);
+  const [printStep, setPrintStep]                     = useState(1);
+  const [shops, setShops]                             = useState([]);
+  const [shopsLoading, setShopsLoading]               = useState(false);
+  const [selectedShop, setSelectedShop]               = useState(null);
+  const [copies, setCopies]                           = useState("1");
+  const [colorMode, setColorMode]                     = useState("bw");
   const [disappearAfterPrint, setDisappearAfterPrint] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting]                   = useState(false);
 
-  // ── Download to local cache (native only) ─────────────────────
+  // ── Download to local cache (native only) ────────────────────
   const downloadToLocal = async () => {
-    setDownloading(true);
-    try {
-      const safeFilename = pdf.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const localUri = FileSystem.documentDirectory + safeFilename;
+  const storedToken = await AsyncStorage.getItem("token");
 
-      const existing = await FileSystem.getInfoAsync(localUri);
-      if (existing.exists) {
-        await FileSystem.deleteAsync(localUri, { idempotent: true });
-      }
+  if (!storedToken) {
+    throw new Error("Missing auth token");
+  }
 
-      const result = await FileSystem.downloadAsync(
-        `${BASE_URL}/pdfs/${pdf._id}/download`,
-        localUri,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  const url = `${BASE_URL}/pdfs/${pdf._id}/download?token=${storedToken}`;
 
-      if (result.status !== 200) {
-        Alert.alert(
-          "Error",
-          `Server returned status ${result.status}. The server may be waking up — please try again in 15 seconds.`
-        );
-        return null;
-      }
+  const sanitizedName = (pdf.originalName || "file.pdf").replace(
+    /[^a-zA-Z0-9.]/g,
+    "_"
+  );
 
-      const fileInfo = await FileSystem.getInfoAsync(result.uri);
-      if (!fileInfo.exists || fileInfo.size === 0) {
-        Alert.alert(
-          "Download Incomplete",
-          "The server is still waking up. Please wait 15 seconds and try again."
-        );
-        return null;
-      }
+  const localUri = FileSystem.documentDirectory + sanitizedName;
 
-      return result.uri;
-    } catch (e) {
-      Alert.alert("Download Error", e.message || "Could not download PDF");
-      return null;
-    } finally {
-      setDownloading(false);
-    }
-  };
+  // Remove old cached file
+  const existing = await FileSystem.getInfoAsync(localUri);
+  if (existing.exists) {
+    await FileSystem.deleteAsync(localUri, { idempotent: true });
+  }
+
+  const download = await FileSystem.downloadAsync(url, localUri);
+
+  // Validate file
+  const fileInfo = await FileSystem.getInfoAsync(download.uri);
+  if (!fileInfo.exists || fileInfo.size === 0) {
+    throw new Error("Downloaded file is empty or missing");
+  }
+
+  return download.uri;
+};
 
   const handleShare = async () => {
     if (Platform.OS === "web") {
@@ -112,13 +104,10 @@ export default function PDFDetailScreen({ route }) {
       }
       return;
     }
-
     const uri = await downloadToLocal();
     if (!uri) return;
-
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) return Alert.alert("Error", "Sharing not available on this device");
-
     await Sharing.shareAsync(uri, {
       mimeType: "application/pdf",
       dialogTitle: `Share ${pdf.originalName}`,
@@ -126,69 +115,28 @@ export default function PDFDetailScreen({ route }) {
     });
   };
 
-  const handlePrint = async () => {
+const handlePrint = async () => {
+  try {
     setPrinting(true);
-    try {
-      if (Platform.OS === "web") {
-        const res = await fetch(`${BASE_URL}/pdfs/${pdf._id}/download`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Could not load PDF for printing");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.src = url;
-        document.body.appendChild(iframe);
-        iframe.onload = () => {
-          try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-          } catch {
-            window.open(url, "_blank");
-          }
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(url);
-          }, 5000);
-        };
-      } else {
-        const uri = await downloadToLocal();
-        if (!uri) return;
 
-        try {
-          await Print.printAsync({ uri });
-        } catch (printErr) {
-          Alert.alert(
-            "Print Unavailable",
-            "No printer was found on this device. Would you like to open the PDF to print from another app?",
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Open PDF",
-                onPress: async () => {
-                  const canShare = await Sharing.isAvailableAsync();
-                  if (canShare) {
-                    await Sharing.shareAsync(uri, {
-                      mimeType: "application/pdf",
-                      dialogTitle: "Open PDF to Print",
-                      UTI: "com.adobe.pdf",
-                    });
-                  }
-                },
-              },
-            ]
-          );
-        }
-      }
-    } catch (e) {
-      Alert.alert("Error", e.message || "Could not print PDF");
-    } finally {
-      setPrinting(false);
-    }
-  };
+    const localUri = await downloadToLocal();
 
-  // ── Share modal handlers ───────────────────────────────────────
+    await Print.printAsync({ uri: localUri });
+
+  } catch (err) {
+    console.log("PRINT ERROR:", err);
+
+    Alert.alert(
+      "Print Failed",
+      err.message === "Downloaded file is empty or missing"
+        ? "Server is waking up, please wait 15 seconds and try again."
+        : err.message || "Could not prepare PDF for printing."
+    );
+  } finally {
+    setPrinting(false);
+  }
+};
+  // ── Share modal handlers ──────────────────────────────────────
   const handleSearch = async () => {
     if (!searchEmail.trim()) return;
     setSearching(true);
@@ -217,17 +165,13 @@ export default function PDFDetailScreen({ route }) {
 
   const handleShareWithUser = async () => {
     if (!selectedUser) return Alert.alert("No user selected", "Search and select a user first");
-
     let expiryHours = selectedExpiry;
-
     if (selectedExpiry === "custom") {
       const parsed = parseFloat(customHours);
-      if (!customHours || isNaN(parsed) || parsed <= 0) {
-        return Alert.alert("Invalid time", "Please enter a valid number of minutes");
-      }
-      expiryHours = parsed / 60;
+      if (!customHours || isNaN(parsed) || parsed <= 0)
+        return Alert.alert("Invalid time", "Please enter a valid number of hours");
+      expiryHours = parsed;
     }
-
     setSharing(true);
     try {
       const { data } = await sharePDF(pdf._id, selectedUser._id, expiryHours);
@@ -245,38 +189,47 @@ export default function PDFDetailScreen({ route }) {
     setSearchEmail("");
     setSearchResults([]);
     setSelectedUser(null);
-    setSelectedExpiry(60);
+    setSelectedExpiry(24);
     setCustomHours("");
   };
 
-  // ── Print modal handlers ───────────────────────────────────────
-  const loadShops = async () => {
-    setShopsError(null);
-    setShopsLoading(true);
-    try {
-      const { data } = await getPrintShops();
-      if (!data || data.length === 0) {
-        setShopsError("no_shops");
-      } else {
-        setShops(data);
-      }
-    } catch (e) {
-      setShopsError(!e.response ? "network" : "server");
-    } finally {
-      setShopsLoading(false);
+  // ── Print modal handlers ──────────────────────────────────────
+const openPrintModal = async () => {
+  setShowPrintModal(true);
+  setPrintStep(1);
+  setSelectedShop(null);
+  setCopies("1");
+  setDisappearAfterPrint(false);
+  setShopsLoading(true);
+
+  try {
+    console.log("Fetching print shops...");
+
+    const response = await getPrintShops();
+
+    console.log("PRINT SHOPS RESPONSE:", response?.data);
+
+    if (!response?.data) {
+      throw new Error("No data received");
     }
-  };
 
-  const openPrintModal = async () => {
-    setShowPrintModal(true);
-    setPrintStep(1);
-    setSelectedShop(null);
-    setCopies("1");
-    setDisappearAfterPrint(false);
-    setShops([]);
-    await loadShops();
-  };
+    setShops(response.data);
 
+  } catch (err) {
+    console.log("ERROR:", err.message);
+    console.log("FULL ERROR:", err);
+
+    Alert.alert(
+      "Could Not Load Shops",
+      err.code === "ECONNABORTED"
+        ? "Server took too long to respond. Try again."
+        : "Server might be waking up. Please wait a few seconds and retry."
+    );
+
+  } finally {
+    setShopsLoading(false); // 🔥 VERY IMPORTANT
+  }
+};
   const closePrintModal = () => {
     setShowPrintModal(false);
     setPrintStep(1);
@@ -285,26 +238,19 @@ export default function PDFDetailScreen({ route }) {
     setDisappearAfterPrint(false);
     setSelectedShop(null);
     setShops([]);
-    setShopsError(null);
   };
 
   const handleSubmitPrint = async () => {
-    if (!selectedShop) {
-      return Alert.alert("No shop selected", "Please choose a print shop first");
-    }
-
     const num = parseInt(copies, 10);
-    if (!copies || isNaN(num) || num < 1) {
+    if (!copies || isNaN(num) || num < 1)
       return Alert.alert("Invalid", "Please enter a valid number of copies (min 1)");
-    }
-
     setSubmitting(true);
     try {
       await submitPrintRequest(pdf._id, num, selectedShop._id, disappearAfterPrint, colorMode);
       Alert.alert(
         "Sent! 🖨️",
         `Print request submitted to ${selectedShop.name} for ${num} cop${num === 1 ? "y" : "ies"}.` +
-          (disappearAfterPrint ? "\n\n🗑 PDF will be deleted after printing." : "")
+        (disappearAfterPrint ? "\n\n🗑 PDF will be deleted after printing." : "")
       );
       closePrintModal();
     } catch (e) {
@@ -318,33 +264,9 @@ export default function PDFDetailScreen({ route }) {
 
   const expiryInfoText = () => {
     if (selectedExpiry === null) return "♾ PDF will stay until manually removed";
-    if (selectedExpiry === "custom") {
-      return customHours
-        ? `📅 PDF will disappear after ${customHours} minute(s)`
-        : "Enter custom minutes above";
-    }
+    if (selectedExpiry === "custom")
+      return customHours ? `📅 PDF will disappear after ${customHours} minute(s)` : "Enter custom minutes above";
     return `📅 PDF will disappear after ${TIME_OPTIONS.find(o => o.value === selectedExpiry)?.label}`;
-  };
-
-  const shopsErrorContent = () => {
-    if (shopsError === "no_shops") return {
-      icon: "🏪",
-      title: "No Print Shops Available",
-      sub: "No print shops have been registered yet. Check back later.",
-      canRetry: false,
-    };
-    if (shopsError === "network") return {
-      icon: "📡",
-      title: "Server is Waking Up",
-      sub: "The server is starting up (~15 sec on free tier). Tap Retry in a moment.",
-      canRetry: true,
-    };
-    return {
-      icon: "⚠️",
-      title: "Could Not Load Shops",
-      sub: "Something went wrong. Please try again.",
-      canRetry: true,
-    };
   };
 
   return (
@@ -379,7 +301,7 @@ export default function PDFDetailScreen({ route }) {
         {printing ? <ActivityIndicator color="#fff" /> : <Text style={s.btnTxt}>🖨 Print PDF</Text>}
       </TouchableOpacity>
 
-      {/* ── Share with User Modal ──────────────────────────────── */}
+      {/* ── Share with User Modal ─────────────────────────────── */}
       <Modal visible={showShareModal} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modal}>
@@ -469,7 +391,7 @@ export default function PDFDetailScreen({ route }) {
         </View>
       </Modal>
 
-      {/* ── Send to Print Modal ────────────────────────────────── */}
+      {/* ── Send to Print Modal ───────────────────────────────── */}
       <Modal visible={showPrintModal} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modal}>
@@ -483,21 +405,9 @@ export default function PDFDetailScreen({ route }) {
                 </View>
 
                 {shopsLoading ? (
-                  <View style={s.shopsLoadingBox}>
-                    <ActivityIndicator size="large" color="#6366f1" />
-                    <Text style={s.shopsLoadingTxt}>Loading print shops…</Text>
-                  </View>
-                ) : shopsError ? (
-                  <View style={s.shopsErrorBox}>
-                    <Text style={s.shopsErrorIcon}>{shopsErrorContent().icon}</Text>
-                    <Text style={s.shopsErrorTitle}>{shopsErrorContent().title}</Text>
-                    <Text style={s.shopsErrorSub}>{shopsErrorContent().sub}</Text>
-                    {shopsErrorContent().canRetry && (
-                      <TouchableOpacity style={s.retryBtn} onPress={loadShops}>
-                        <Text style={s.retryBtnTxt}>🔄 Retry</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                  <ActivityIndicator size="large" color="#6366f1" style={{ marginVertical: 32 }} />
+                ) : shops.length === 0 ? (
+                  <Text style={s.emptyShops}>No print shops available right now.</Text>
                 ) : (
                   <ScrollView style={{ maxHeight: 320 }}>
                     {shops.map((shop) => (
@@ -521,9 +431,9 @@ export default function PDFDetailScreen({ route }) {
                 )}
 
                 <TouchableOpacity
-                  style={[s.shareConfirmBtn, (!selectedShop || !!shopsError) && s.btnDisabled]}
+                  style={[s.shareConfirmBtn, !selectedShop && s.btnDisabled]}
                   onPress={() => selectedShop && setPrintStep(2)}
-                  disabled={!selectedShop || !!shopsError}
+                  disabled={!selectedShop}
                 >
                   <Text style={s.btnTxt}>Next: Set Copies →</Text>
                 </TouchableOpacity>
@@ -691,14 +601,7 @@ const s = StyleSheet.create({
   queueChip: { backgroundColor: "#f59e0b", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   queueChipFree: { backgroundColor: "#10b981" },
   queueChipTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  shopsLoadingBox: { alignItems: "center", paddingVertical: 32 },
-  shopsLoadingTxt: { color: "#64748b", fontSize: 14, marginTop: 12 },
-  shopsErrorBox: { alignItems: "center", paddingVertical: 24, paddingHorizontal: 16 },
-  shopsErrorIcon: { fontSize: 40, marginBottom: 10 },
-  shopsErrorTitle: { fontSize: 16, fontWeight: "700", color: "#1e293b", marginBottom: 6, textAlign: "center" },
-  shopsErrorSub: { fontSize: 13, color: "#64748b", textAlign: "center", marginBottom: 16 },
-  retryBtn: { backgroundColor: "#6366f1", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
-  retryBtnTxt: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  emptyShops: { textAlign: "center", color: "#94a3b8", fontSize: 15, marginVertical: 32 },
   selectedShopRow: { backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#bbf7d0" },
   selectedShopTxt: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
   selectedShopQueue: { fontSize: 12, color: "#16a34a", marginTop: 2 },
